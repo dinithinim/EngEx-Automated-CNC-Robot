@@ -1,0 +1,9 @@
+
+
+A updated DIY CNC machine with AI technology for image plotting
+
+Refered design and Project repository available on,
+	https://github.com/NuwanJ/CO326-project
+
+Full design and Project repository available on,
+	https://github.com/Bimsara-Janakantha/EngEx-Automated-CNC-Robot
