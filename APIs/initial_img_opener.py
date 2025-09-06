@@ -7,7 +7,7 @@ API_KEY = "<API_KEY_HERE>"
 CSE_ID = "<CSE_ID_HERE>"
 
 def google_image_search(object_name):
-    query = f"simple {object_name} outline image"
+    query = f"simple outline image of a {object_name}"
     url = "https://www.googleapis.com/customsearch/v1"
     params = {
         "key": API_KEY,
@@ -50,7 +50,7 @@ if __name__ == "__main__":
     if image_url:
         print(f"Found image URL: {image_url}")
 
-        save_folder = "C:/Users/USER/Desktop/cnc_project"
+        save_folder = os.path.expanduser("~/Desktop/cnc_project/img")
         os.makedirs(save_folder, exist_ok=True)
         file_name = f"{object_name.replace(' ', '_')}_pencil_sketch.jpg"
         save_path = os.path.join(save_folder, file_name)
