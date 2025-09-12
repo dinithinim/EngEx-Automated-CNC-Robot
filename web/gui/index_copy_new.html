@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>CNC Web Controller</title>
+
+<!-- Your CSS -->
+<link rel="stylesheet" href="index_copy.css">
+
+<!-- External Libraries (CDN for simplicity) -->
+<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+<link rel="stylesheet" href="https://www.w3schools.com/lib/w3-theme-blue.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+<link rel="stylesheet" href="css/custom.css">
+
+<script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@v0.149.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@v0.149.0/examples/jsm/"
+    }
+  }
+</script>
+
+<script type="module" src="script.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.js"></script>
+<script src="https://code.jquery.com/jquery-1.9.0.min.js"></script>
+
+<style>
+/* General Layout */
+body, html {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    height: 100%;
+    overflow: hidden; /* keep one-page layout */
+}
+
+.main-container {
+    display: flex;
+    height: 100%;
+}
+
+/* Left Visualizer Panel as 2x2 Grid */
+.visualizer-panel {
+    flex: 7;
+    padding: 10px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 10px;
+    height: 100%;
+    box-sizing: border-box;
+}
+
+/* Each quadrant */
+.visualizer-cell {
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Title bar for each quadrant */
+.visualizer-title {
+    background: #f0f0f0;
+    padding: 5px 10px;
+    font-weight: bold;
+    font-size: 14px;
+    border-bottom: 1px solid #ccc;
+}
+
+/* Content inside quadrant */
+.visualizer-content {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.visualizer-content img,
+.visualizer-content video,
+.visualizer-content canvas {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+/* Right Sidebar */
+.sidebar {
+    flex: 3;
+    background: #f5f5f5;
+    border-left: 1px solid #ccc;
+    padding: 10px;
+    overflow-y: auto;
+}
+
+/* Buttons */
+.app-panel-btn {
+    border: 1px solid #555;
+    height: 45px;
+    width: 45px;
+    padding: 5px;
+    margin: 3px;
+    background-color: #f8f8f8;
+    transition: background-color 0.2s, transform 0.1s;
+}
+.app-panel-btn:hover {
+    background-color: #ccc !important;
+    transform: scale(1.05);
+}
+
+/* Drag & Drop Zone */
+#dropZone {
+    border-radius:5px;
+    padding:10px;
+    text-align:center;
+    cursor:pointer;
+    border:2px dashed gray;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+#dropZone.w3-light-gray {
+    background-color: #f0f0f0;
+    border-color: #aaa;
+}
+</style>
+</head>
+<body>
+
+<div class="main-container">
+
+  <!-- LEFT: 2x2 Visualizer Grid -->
+  <div class="visualizer-panel">
+
+    <!-- Top-left: Logo -->
+    <div class="visualizer-cell">
+      <div class="visualizer-title"><i class="fa fa-image"></i> Image</div>
+      <div class="visualizer-content">
+        <img id="displayImage" src="images/logo.png" alt="Image">
+      </div>
+    </div>
+
+
+    <!-- Top-right: XY Cartesian Plane -->
+    <div class="visualizer-cell">
+      <div class="visualizer-title"><i class="fa fa-arrows"></i> Visualizer</div>
+      <div class="visualizer-content" id="visualizer-content">
+        <img id="gcodeImage" src="images/cartesian.png" alt="visualizer">
+      </div>
+    </div>
+
+    <!-- Bottom-left: Live CNC Stream -->
+    <div class="visualizer-cell">
+      <div class="visualizer-title"><i class="fa fa-video-camera"></i> CNC Live Feed</div>
+      <div class="visualizer-content">
+        <img src="http://<raspberrypi-ip>:8080/?action=stream" alt="CNC Live Stream">
+      </div>
+    </div>
+
+    <!-- Bottom-right: Canvas Visualizer -->
+    <div class="visualizer-cell">
+      <div class="visualizer-content">
+        <canvas id="visualizerCanvas" width="400" height="300"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT: Sidebar Controls -->
+  <div class="sidebar">
+
+    <!-- Coordinates -->
+    <div class="w3-card-4">
+      <p><strong>Work Coordinates:</strong><br>
+        X: <span id="lblXCord">0.00</span> | 
+        Y: <span id="lblYCord">0.00</span> | 
+        Z: <span id="lblZCord">0.00</span>
+      </p>
+    </div>
+
+    <!-- Controller -->
+    <div class="w3-card-4">
+      <button onclick="accordianHandler('accController')" class="w3-button w3-block w3-left-align w3-light-grey">Controller</button>
+      <div id="accController" class="w3-hide w3-padding">
+        <div class="w3-btn-group">
+          <button id="btnStart" class="w3-btn w3-green fa fa-play"> Start</button>
+          <button id="btnPause" class="w3-btn w3-amber fa fa-pause"> Pause</button>
+          <button id="btnStop" class="w3-btn w3-red fa fa-stop"> Stop</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Commands -->
+    <div class="w3-card-4">
+      <button onclick="accordianHandler('accCommands')" class="w3-button w3-block w3-left-align w3-light-grey">Commands</button>
+      <div id="accCommands" class="w3-hide w3-padding">
+        <label>Search Prompt:</label>
+        <input id="textInput" class="w3-input w3-border" type="text" placeholder="Search Prompt...">
+        <div style="display: flex; justify-content: center;">
+          <button id="text_input_submit" class="button-5" onclick = "">Plot</button>
+        </div>
+        <br>
+        <label>Upload/Drop Image:</label>
+        <div id="dropZone">Drop image here or click</div>
+        <input type="file" id="fileUpload" accept="image/*" style="display:none;">
+        <div style="display: flex; justify-content: center;">
+          <button id="file_input_submit" class="button-5" onclick = "">Plot</button>
+          <br>
+        </div>
+        <div style="display: flex; justify-content: center;">
+          <button id="restart_btn" class="button-6" onclick = "clear_all()">Restart</button>
+        </div>
+        <br>
+      </div>
+    </div>
+
+    <!-- Jog Control -->
+    <div class="w3-card-4">
+      <button onclick="accordianHandler('accJog')" class="w3-button w3-block w3-left-align w3-light-grey">Jog Control</button>
+      <div id="accJog" class="w3-hide w3-padding">
+        <h5 style="text-align:center;">Home</h5>
+        <div class="w3-btn-group" style="text-align:center;">
+        <button id="btnHome" class="w3-btn w3-light-grey fa fa-home"></button>
+        </div>
+        <h5 style="text-align:center;">XY</h5>
+        <table style="margin:auto;">
+          <tr>
+            <td></td>
+            <td><button class="app-panel-btn fa fa-arrow-up" onclick="jog('Y+')"></button></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td><button class="app-panel-btn fa fa-arrow-left" onclick="jog('X-')"></button></td>
+            <td><button class="app-panel-btn fa fa-stop" onclick="jog('STOP')"></button></td>
+            <td><button class="app-panel-btn fa fa-arrow-right" onclick="jog('X+')"></button></td>
+          </tr>
+          <tr>
+            <td></td>
+            <td><button class="app-panel-btn fa fa-arrow-down" onclick="jog('Y-')"></button></td>
+            <td></td>
+          </tr>
+        </table>
+
+        <hr>
+
+        <h5 style="text-align:center;">Z</h5>
+        <table style="margin:auto;">
+          <tr><td><button class="app-panel-btn fa fa-arrow-up" onclick="jog('Z+')"></button></td></tr>
+          <tr><td><button class="app-panel-btn fa fa-arrow-down" onclick="jog('Z-')"></button></td></tr>
+        </table>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function accordianHandler(id){
+  const elem = document.getElementById(id);
+  if (elem.classList.contains("w3-hide")) {
+    elem.classList.remove("w3-hide");
+  } else {
+    elem.classList.add("w3-hide");
+  }
+}
+
+function clearCanvas(){
+  let ctx = document.getElementById("visualizerCanvas").getContext("2d");
+  ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);
+}
+
+function jog(dir){
+  console.log("Jog command:", dir);
+  // sendCommand logic here
+}
+
+function updateCoordinates(x, y, z){
+  document.getElementById("lblXCord").textContent = x.toFixed(2);
+  document.getElementById("lblYCord").textContent = y.toFixed(2);
+  document.getElementById("lblZCord").textContent = z.toFixed(2);
+
+  document.getElementById("coordX").textContent = x.toFixed(2);
+  document.getElementById("coordY").textContent = y.toFixed(2);
+  document.getElementById("coordZ").textContent = z.toFixed(2);
+}
+
+/* ---------------------------
+   Drag & Drop + File Explorer
+   (Single image only, with delete/replace)
+--------------------------- */
+const dropZone = document.getElementById("dropZone");
+const fileInput = document.getElementById("fileUpload");
+let currentImg = null;
+let deleteBtn = null;
+let placeholderText = dropZone.innerHTML;
+
+// Clicking opens file dialog if no image
+dropZone.addEventListener("click", () => {
+  if (!currentImg) fileInput.click();
+});
+
+// Handle file selection
+fileInput.addEventListener("change", (e) => {
+  handleFiles(e.target.files);
+});
+
+// Drag & Drop Events
+dropZone.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  dropZone.classList.add("w3-light-gray");
+});
+
+dropZone.addEventListener("dragleave", (e) => {
+  e.preventDefault();
+  dropZone.classList.remove("w3-light-gray");
+});
+
+dropZone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropZone.classList.remove("w3-light-gray");
+  if (e.dataTransfer.files.length) {
+    handleFiles(e.dataTransfer.files);
+  }
+});
+
+
+let selectedImagePath = "";                                   // variable to store the file path
+
+
+// File handler (only one image allowed)
+// File handler (only one image allowed)
+function handleFiles(files) {
+  const file = files[0]; // only first file
+  if (!file.type.startsWith("image/")) {
+    alert("Please upload an image file (jpg, png, etc.)");
+    return;
+  }
+
+  // Clear old preview in drop zone
+  if (currentImg) {
+    currentImg.remove();
+    deleteBtn.remove();
+    currentImg = null;
+    deleteBtn = null;
+  }
+
+  dropZone.innerHTML = ""; // remove placeholder text
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    // Show image in the top-left section
+    const displayImg = document.getElementById("displayImage");
+    displayImg.src = e.target.result;
+
+    selectedImagePath = e.target.result;                                       //Beware
+
+    // Create thumbnail preview + delete button in dropZone
+    currentImg = document.createElement("img");
+    currentImg.src = e.target.result;
+    currentImg.style.maxWidth = "100%";
+    currentImg.style.marginTop = "10px";
+    currentImg.style.borderRadius = "5px";
+
+    deleteBtn = document.createElement("button");
+    deleteBtn.textContent = "✖ Remove";
+    deleteBtn.className = "w3-button w3-red w3-small";
+    deleteBtn.style.marginTop = "5px";
+    deleteBtn.onclick = () => {
+      // Reset both dropZone and main image
+      currentImg.remove();
+      deleteBtn.remove();
+      currentImg = null;
+      deleteBtn = null;
+      fileInput.value = "";
+      dropZone.innerHTML = placeholderText;
+      displayImg.src = "images/logo.png"; // restore default
+      selectedImagePath = "";                                                              //Beware
+    };
+
+    dropZone.appendChild(currentImg);
+    dropZone.appendChild(deleteBtn);
+  };
+  reader.readAsDataURL(file);
+}
+
+/*-----------------
+Text Input Search
+
+--------------------------*/
+
+const textInput = document.getElementById("textInput");
+const text_input_submit_btn = document.getElementById("text_input_submit");
+
+    text_input_submit_btn.addEventListener("click", async function () {
+      const value = textInput.value.trim();
+
+      if (value === "") {
+        alert("⚠️ Please enter an item to be plotted first!");
+        return; 
+      }
+
+      try {
+        const response = await fetch("http://127.0.0.1:5000/search", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ input: value })
+        });
+
+        const result = await response.json();
+        console.log("Response from Flask:", result);
+
+        if (result.status === "error") {
+          alert("❌ Error: " + result.message + "Please try again...");
+        } 
+        else {
+
+           const timestamp = new Date().getTime(); // unique number to prevent cache
+
+            const displayImg = document.getElementById("displayImage");
+            displayImg.src = `images/sketch.jpg?t=${timestamp}`;
+
+            const gcodeImg = document.getElementById("gcodeImage");
+            gcodeImg.src = `images/sketch.svg?t=${timestamp}`;
+
+        }
+      } catch (err) {
+        console.error("Request failed:", err);
+        alert("⚠️ Could not reach Flask server.");
+      }
+    });
+
+
+/*----------------------------------
+File input image
+
+--------------------------------------*/
+
+const file_input_submit_btn = document.getElementById("file_input_submit");
+
+
+    // On button click, call function with path or warn if empty
+    // file_input_submit_btn.addEventListener("click", function () {
+    //   if (selectedImagePath === "") {
+    //     alert("⚠️ Please select an image first!");
+    //   } else {
+    //     myFunction(selectedImagePath);
+    //   }
+    // });
+
+    // Example function
+    function myFunction(imagePath) {
+      console.log("Image path passed to function:", imagePath);
+      alert("Function called with: " + imagePath);
+    }
+
+    
+
+  file_input_submit_btn.addEventListener("click", async () => {
+  const fileInput = document.getElementById("fileUpload");
+  const file = fileInput.files[0];
+
+  if (!file) {
+    alert("⚠️ Please select an image first!");
+    return;
+  }
+
+  try{
+  const formData = new FormData();
+  formData.append("image", file);
+
+  const response = await fetch("http://localhost:5000/upload", {
+    method: "POST",
+    body: formData
+  });
+
+
+    const result = await response.text();
+    if (result.status === "error") {
+            alert("❌ Error: " + result.message + "Please try again...");
+          } 
+    else {
+
+        const timestamp = new Date().getTime(); // unique number to prevent cache
+
+        const displayImg = document.getElementById("displayImage");
+        displayImg.src = `images/sketch.jpg?t=${timestamp}`;
+
+        const gcodeImg = document.getElementById("gcodeImage");
+        gcodeImg.src = `images/sketch.svg?t=${timestamp}`;
+
+      }
+
+    }
+    catch (err) {
+        console.error("Request failed:", err);
+        alert("⚠️ Could not reach Flask server.");
+      }
+});
+
+
+function clear_all(){
+  document.getElementById("displayImage").src = "";
+  document.getElementById("gcodeImage").src = "";
+  document.getElementById("textInput").value = "";
+
+
+
+}
+
+
+</script>
+
+</body>
+</html>
