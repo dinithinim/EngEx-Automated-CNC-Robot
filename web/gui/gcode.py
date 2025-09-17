@@ -8,9 +8,9 @@ from skimage import img_as_bool, img_as_ubyte
 import svgwrite
 import xml.etree.ElementTree as ET
 
-
-API_KEY = "AIzaSyDZfuNNQKi625ep6NWnbD8Ty_UyeChHZXc"
-CSE_ID = "511ba7e683f874473"
+# Enter the correct API key and the CSE id
+API_KEY = "#################"
+CSE_ID = "############"
 
 def google_image_search(object_name, num_results=3):
     query = f"simple flat {object_name} image" # simple {obj} outline image
@@ -215,3 +215,4 @@ def gcode_generation():
     return 0
 
     
+
