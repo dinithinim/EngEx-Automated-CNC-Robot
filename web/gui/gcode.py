@@ -13,7 +13,7 @@ API_KEY = "AIzaSyDZfuNNQKi625ep6NWnbD8Ty_UyeChHZXc"
 CSE_ID = "511ba7e683f874473"
 
 def google_image_search(object_name, num_results=3):
-    query = f"simple {object_name} outline image"
+    query = f"simple flat {object_name} image" # simple {obj} outline image
     url = "https://www.googleapis.com/customsearch/v1"
     params = {
         "key": API_KEY,
@@ -213,4 +213,5 @@ def gcode_generation():
     optimize_gcode(gcode_path, optimized_path)
     print("Pipeline finished successfully!")
     return 0
+
     
